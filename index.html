@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sitzplangenerator</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #cbd5e1;
+    --active-seat: #dbeafe;
+    --active-border: #3b82f6;
+    --text: #1e293b;
+  }
+
+  * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+  body { background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+  h1 { margin: 0; font-size: 1.5rem; }
+  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .controls {
+    background: var(--card);
+    padding: 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  button, .file-label {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: background 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  button:hover, .file-label:hover { background: var(--primary-hover); }
+  button.secondary { background: #64748b; }
+  button.secondary:hover { background: #475569; }
+  button.outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  button.outline:hover { background: #f1f5f9; }
+  
+  input[type="file"] { display: none; }
+
+  .text-input-panel {
+    display: none;
+    background: var(--card);
+    padding: 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .text-input-panel.open {
+    display: flex;
+  }
+  .text-input-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .text-input-panel textarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    resize: vertical;
+  }
+  .text-input-panel textarea:focus {
+    outline: 2px solid var(--primary);
+    border-color: transparent;
+  }
+  .text-input-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    font-size: 0.9rem;
+    color: #475569;
+    margin-bottom: 14px;
+    background: var(--card);
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    align-items: center;
+  }
+  .badge { font-weight: 700; color: var(--text); }
+  .warning { color: #dc2626; font-weight: 600; }
+
+  .source-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #f1f5f9;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+  .source-switcher label {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .classroom {
+    background: var(--card);
+    padding: 24px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .print-title {
+    display: none;
+  }
+
+  .board {
+    background: #334155;
+    color: white;
+    text-align: center;
+    padding: 8px 24px;
+    border-radius: 6px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    grid-auto-rows: 62px;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .seat {
+    height: 100%;
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4px;
+    font-size: 0.8rem;
+    line-height: 1.15;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.1s, background-color 0.1s, transform 0.1s;
+    overflow: hidden;
+    word-break: break-word;
+    hyphens: auto;
+    background: #f8fafc;
+    color: #94a3b8;
+  }
+
+  .seat:hover { border-color: var(--primary); }
+
+  .seat.active {
+    background: var(--active-seat);
+    border: 2px solid var(--active-border);
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .seat.active[draggable="true"] {
+    cursor: grab;
+  }
+
+  .seat.dragging {
+    opacity: 0.45;
+  }
+
+  .seat.drag-over {
+    border: 2px solid #16a34a !important;
+    background: #dcfce7 !important;
+    transform: scale(1.03);
+  }
+
+  /* Hilfe-Modal */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-backdrop.open {
+    display: flex;
+  }
+  .modal-box {
+    background: var(--card);
+    color: var(--text);
+    max-width: 680px;
+    width: 100%;
+    max-height: 88vh;
+    overflow-y: auto;
+    border-radius: 12px;
+    padding: 24px 28px;
+    box-shadow: 0 20px 35px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border);
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+  .modal-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+  .modal-box h3 {
+    margin: 18px 0 6px 0;
+    font-size: 1.02rem;
+    color: var(--primary);
+  }
+  .modal-box p, .modal-box li {
+    font-size: 0.94rem;
+    line-height: 1.55;
+    color: #334155;
+  }
+  .modal-box ul, .modal-box ol {
+    padding-left: 20px;
+    margin: 6px 0 12px 0;
+  }
+  .modal-box li {
+    margin-bottom: 6px;
+  }
+  .tip-box {
+    background: #eff6ff;
+    border-left: 4px solid var(--primary);
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin: 10px 0;
+    font-size: 0.92rem;
+  }
+  .modal-footer {
+    margin-top: 20px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  /* Optimierte DIN-A4-Druckansicht */
+  @media print {
+    @page {
+      size: A4 landscape;
+      margin: 10mm;
+    }
+
+    html, body {
+      background: white !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100%;
+      height: 100%;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    header, .controls, .text-input-panel, .status-bar, .no-print, .modal-backdrop {
+      display: none !important;
+    }
+
+    .container {
+      max-width: none !important;
+      width: 100% !important;
+      height: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    .classroom {
+      border: none !important;
+      padding: 0 !important;
+      width: 100% !important;
+      height: calc(100vh - 20mm) !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: space-between !important;
+      gap: 10px !important;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .print-title {
+      display: block !important;
+      text-align: center;
+      font-size: 13pt;
+      font-weight: 700;
+      margin: 0;
+      color: #000;
+    }
+
+    .board {
+      background: #f1f5f9 !important;
+      color: #000 !important;
+      border: 1.5px solid #000 !important;
+      padding: 5px 16px !important;
+      font-size: 10pt !important;
+      flex-shrink: 0;
+    }
+
+    .grid {
+      flex: 1 1 auto !important;
+      height: 100% !important;
+      grid-template-columns: repeat(var(--print-cols, 10), minmax(0, 1fr)) !important;
+      grid-template-rows: repeat(var(--print-rows, 10), minmax(0, 1fr)) !important;
+      grid-auto-rows: unset !important;
+      gap: 6px !important;
+    }
+
+    .seat.print-hidden {
+      display: none !important;
+    }
+
+    .seat:not(.active) {
+      visibility: hidden !important;
+      border: none !important;
+    }
+
+    .seat.active {
+      background: #ffffff !important;
+      border: 1.5px solid #000000 !important;
+      color: #000000 !important;
+      font-size: 10pt !important;
+      padding: 4px !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Sitzplangenerator (10 × 10)</h1>
+    <div class="header-actions no-print">
+      <button class="outline" onclick="toggleHelpModal(true)">❓ Anleitung / Hilfe</button>
+      <button class="outline" onclick="flipView()">Ansicht drehen (Lehrer/Schüler)</button>
+      <button class="outline" onclick="printPlan()">Drucken / PDF (DIN A4)</button>
+    </div>
+  </header>
+
+  <div class="controls">
+    <label class="file-label">
+      📂 CSV-Datei laden
+      <input type="file" id="csvInput" accept=".csv,.txt">
+    </label>
+    <button class="outline" onclick="toggleTextPanel()">✏️ Namen per Text einfügen</button>
+    <button onclick="assignSeats()">🎲 Zufällig verteilen</button>
+    <button class="secondary" onclick="clearNames()">Namen leeren</button>
+    <button class="outline" onclick="resetGrid()">Raster zurücksetzen</button>
+    <button class="outline" onclick="exportLayout()">💾 Raum-Layout speichern</button>
+    <label class="file-label" style="background:#475569;">
+      📥 Layout laden
+      <input type="file" id="layoutInput" accept=".json">
+    </label>
+  </div>
+
+  <div class="text-input-panel" id="textInputPanel">
+    <div class="text-input-header">
+      <strong>Namen direkt eingeben oder hineinkopieren (ein Name pro Zeile):</strong>
+      <button class="outline" style="padding: 4px 10px; font-size: 0.85rem;" onclick="toggleTextPanel()">Schließen ✕</button>
+    </div>
+    <textarea id="manualNamesInput" placeholder="Max Mustermann&#10;Erika Musterfrau&#10;Leon Beispiel&#10;..."></textarea>
+    <div class="text-input-actions">
+      <button onclick="applyManualNames()">Namen übernehmen & Textfeld aktivieren</button>
+      <button class="outline" onclick="clearManualText()">Textfeld leeren</button>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div class="source-switcher">
+      <span>Aktive Quelle:</span>
+      <label>
+        <input type="radio" name="nameSource" value="csv" checked onchange="switchSource('csv')">
+        CSV-Datei (<span id="fileNameDisplay" class="badge">keine</span>)
+      </label>
+      <label>
+        <input type="radio" name="nameSource" value="text" onchange="switchSource('text')">
+        Textfeld (<span id="textCountDisplay" class="badge">0</span>)
+      </label>
+    </div>
+    <div>Verwendete Namen: <span id="nameCount" class="badge">0</span></div>
+    <div>Aktive Sitzplätze: <span id="seatCount" class="badge">0</span></div>
+    <div id="warningMsg" class="warning"></div>
+  </div>
+
+  <div class="classroom" id="classroom">
+    <div class="print-title" id="printTitle">Sitzplan</div>
+    <div class="board" id="boardTop">TAFEL / SMARTBOARD</div>
+    <div class="grid" id="grid"></div>
+    <div class="board" id="boardBottom" style="display:none;">TAFEL / SMARTBOARD</div>
+  </div>
+</div>
+
+<!-- Hilfe- / Erklärungsfenster -->
+<div class="modal-backdrop" id="helpModal" onclick="if(event.target === this) toggleHelpModal(false)">
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+    <div class="modal-header">
+      <h2 id="helpModalTitle">Bedienungsanleitung – Sitzplangenerator</h2>
+      <button class="outline" style="padding: 4px 10px;" onclick="toggleHelpModal(false)">✕</button>
+    </div>
+
+    <h3>1. Schülerliste laden (CSV oder Textfeld)</h3>
+    <p>Du hast zwei Möglichkeiten, die Namen der Klasse oder des Kurses einzulesen:</p>
+    <ul>
+      <li><strong>CSV-Datei laden:</strong> Lade eine <code>.csv</code>- oder <code>.txt</code>-Datei hoch (ein Name pro Zeile; Semikolon- oder Komma-getrennte Spalten wie <em>Nachname;Vorname</em> werden automatisch zusammengeführt).</li>
+      <li><strong>Namen per Text einfügen:</strong> Öffne das Textfeld und füge eine kopierte Namensliste direkt per Strg+V / Einfügen ein.</li>
+    </ul>
+    <div class="tip-box">
+      <strong>Tipp für IServ:</strong> Für die Namensliste eignet sich zum Beispiel das IServ-Modul <strong>„Gruppenlisten“</strong>. Dort kannst du für deine Klasse oder deinen Kurs entweder direkt eine <strong>CSV-Datei exportieren</strong> oder die auf dem Bildschirm <strong>angezeigte Namensliste markieren, kopieren</strong> und hier über <em>„Namen per Text einfügen“</em> einfügen.
+    </div>
+    <p>In der Statusleiste kannst du jederzeit über <strong>Aktive Quelle</strong> zwischen der geladenen CSV-Datei und dem Textfeld wechseln.</p>
+
+    <h3>2. Raum-Layout festlegen & speichern</h3>
+    <ul>
+      <li>Klicke im <strong>10×10-Raster</strong> auf alle Felder, an denen Tische stehen sollen (aktive Plätze werden blau). Ein erneuter Klick deaktiviert den Platz wieder.</li>
+      <li>Mit <strong>„💾 Raum-Layout speichern“</strong> sicherst du die Tischanordnung als kleine Datei (z. B. <code>raum-204.json</code>) und kannst sie später über <strong>„📥 Layout laden“</strong> jederzeit wieder aufrufen.</li>
+    </ul>
+
+    <h3>3. Zufällig verteilen & einzelne Plätze tauschen</h3>
+    <ul>
+      <li>Ein Klick auf <strong>„🎲 Zufällig verteilen“</strong> lost alle Namen auf die aktiven Plätze aus.</li>
+      <li><strong>Manuell tauschen (Drag & Drop):</strong> Ziehe ein aktives Sitzplatz-Kästchen auf ein anderes blaues Kästchen (leuchtet grün auf), um zwei Personen nachträglich miteinander zu tauschen.</li>
+    </ul>
+
+    <h3>4. Ansicht drehen & als DIN-A4-PDF drucken</h3>
+    <ul>
+      <li><strong>Ansicht drehen:</strong> Wechselt zwischen Pultperspektive (Tafel oben) und Schülerperspektive (Tafel unten, z. B. zum Projizieren am Smartboard).</li>
+      <li><strong>Drucken / PDF (DIN A4):</strong> Skaliert automatisch nur den genutzten Tischbereich formatfüllend auf eine einzige DIN-A4-Seite im Querformat und blendet unbenutzte Felder aus.</li>
+      <li><strong>Hinweis fürs iPad:</strong> Öffne die HTML-Datei aus der Dateien-App über <em>Teilen → „In Safari öffnen“</em>, damit Dateidownloads und der PDF-Export vollständig funktionieren.</li>
+    </ul>
+
+    <div class="modal-footer">
+      <button onclick="toggleHelpModal(false)">Verstanden</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ROWS = 10;
+  const COLS = 10;
+  let activeSeats = new Set();
+  let csvStudents = [];
+  let textStudents = [];
+  let activeSource = 'csv'; // 'csv' oder 'text'
+  let isFlipped = false;
+  let draggedCell = null;
+  let currentFileName = '';
+
+  const gridEl = document.getElementById('grid');
+
+  // 10x10 Raster initialisieren
+  function initGrid() {
+    gridEl.innerHTML = '';
+    for (let i = 0; i < ROWS * COLS; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'seat';
+      cell.dataset.index = i;
+      cell.textContent = 'Frei';
+      cell.onclick = () => toggleSeat(i, cell);
+
+      cell.addEventListener('dragstart', handleDragStart);
+      cell.addEventListener('dragover', handleDragOver);
+      cell.addEventListener('dragleave', handleDragLeave);
+      cell.addEventListener('drop', handleDrop);
+      cell.addEventListener('dragend', handleDragEnd);
+
+      gridEl.appendChild(cell);
+    }
+    applyGridOrder();
+    updateStats();
+  }
+
+  function toggleSeat(index, cell) {
+    if (activeSeats.has(index)) {
+      activeSeats.delete(index);
+      cell.classList.remove('active');
+      cell.removeAttribute('draggable');
+      cell.textContent = 'Frei';
+    } else {
+      activeSeats.add(index);
+      cell.classList.add('active');
+      cell.setAttribute('draggable', 'true');
+      cell.textContent = 'Sitzplatz';
+    }
+    updateStats();
+  }
+
+  // Hilfe-Fenster öffnen/schließen
+  function toggleHelpModal(show) {
+    const modal = document.getElementById('helpModal');
+    if (show) {
+      modal.classList.add('open');
+    } else {
+      modal.classList.remove('open');
+    }
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      toggleHelpModal(false);
+    }
+  });
+
+  // Hilfsfunktion zum Parsen von Namen aus Text
+  function parseNames(rawText) {
+    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    const parsed = lines.map(line => {
+      const parts = line.split(/[;,]/).map(p => p.trim().replace(/^"|"$/g, ''));
+      return parts.filter(Boolean).join(' ');
+    });
+    if (parsed.length > 0 && /^(name|vorname|schüler)/i.test(parsed[0])) {
+      parsed.shift();
+    }
+    return parsed;
+  }
+
+  // Textfeld ein-/ausblenden
+  function toggleTextPanel() {
+    const panel = document.getElementById('textInputPanel');
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) {
+      document.getElementById('manualNamesInput').focus();
+    }
+  }
+
+  // Namen aus Textfeld übernehmen
+  function applyManualNames() {
+    const raw = document.getElementById('manualNamesInput').value;
+    textStudents = parseNames(raw);
+    document.getElementById('textCountDisplay').textContent = textStudents.length;
+    switchSource('text');
+  }
+
+  function clearManualText() {
+    document.getElementById('manualNamesInput').value = '';
+    textStudents = [];
+    document.getElementById('textCountDisplay').textContent = '0';
+    updateStats();
+  }
+
+  // Live-Aktualisierung beim Tippen/Einfügen im Textfeld
+  document.getElementById('manualNamesInput').addEventListener('input', function() {
+    textStudents = parseNames(this.value);
+    document.getElementById('textCountDisplay').textContent = textStudents.length;
+    if (activeSource === 'text') {
+      updateStats();
+    }
+  });
+
+  // Zwischen CSV-Datei und Textfeld wechseln
+  function switchSource(source) {
+    activeSource = source;
+    const radio = document.querySelector(`input[name="nameSource"][value="${source}"]`);
+    if (radio) radio.checked = true;
+    updateStats();
+  }
+
+  function getActiveStudentList() {
+    return activeSource === 'csv' ? csvStudents : textStudents;
+  }
+
+  // Drag & Drop Logik
+  function handleDragStart(e) {
+    if (!this.classList.contains('active')) {
+      e.preventDefault();
+      return;
+    }
+    draggedCell = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', this.dataset.index);
+  }
+
+  function handleDragOver(e) {
+    if (!this.classList.contains('active') || this === draggedCell) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    this.classList.add('drag-over');
+  }
+
+  function handleDragLeave() {
+    this.classList.remove('drag-over');
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    this.classList.remove('drag-over');
+    if (!draggedCell || draggedCell === this || !this.classList.contains('active')) return;
+
+    const tempText = draggedCell.textContent;
+    draggedCell.textContent = this.textContent;
+    this.textContent = tempText;
+  }
+
+  function handleDragEnd() {
+    if (draggedCell) draggedCell.classList.remove('dragging');
+    document.querySelectorAll('.seat').forEach(s => s.classList.remove('drag-over'));
+    draggedCell = null;
+  }
+
+  // CSV Einlesen
+  document.getElementById('csvInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    currentFileName = file.name;
+    document.getElementById('fileNameDisplay').textContent = file.name;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      csvStudents = parseNames(event.target.result);
+      switchSource('csv');
+    };
+    reader.readAsText(file, 'UTF-8');
+  });
+
+  // Zufällige Verteilung (Fisher-Yates Shuffle)
+  function assignSeats() {
+    const students = getActiveStudentList();
+    if (students.length === 0) {
+      alert(activeSource === 'csv'
+        ? 'Bitte zuerst eine CSV-Datei mit Namen laden oder auf „Textfeld“ wechseln.'
+        : 'Bitte zuerst Namen in das Textfeld eingeben oder auf „CSV-Datei“ wechseln.');
+      return;
+    }
+    if (activeSeats.size === 0) {
+      alert('Bitte zuerst im 10×10-Raster Sitzplätze durch Anklicken aktivieren.');
+      return;
+    }
+
+    const shuffled = [...students];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    const seatIndices = Array.from(activeSeats).sort((a, b) => a - b);
+    const cells = document.querySelectorAll('.seat');
+
+    seatIndices.forEach((seatIdx, i) => {
+      cells[seatIdx].textContent = shuffled[i] || 'Leer';
+    });
+  }
+
+  function clearNames() {
+    document.querySelectorAll('.seat.active').forEach(cell => {
+      cell.textContent = 'Sitzplatz';
+    });
+  }
+
+  function resetGrid() {
+    activeSeats.clear();
+    initGrid();
+  }
+
+  function updateStats() {
+    const students = getActiveStudentList();
+    document.getElementById('nameCount').textContent = students.length;
+    document.getElementById('seatCount').textContent = activeSeats.size;
+    const warn = document.getElementById('warningMsg');
+    if (students.length > activeSeats.size && activeSeats.size > 0) {
+      warn.textContent = `Achtung: ${students.length - activeSeats.size} Schüler haben noch keinen Platz!`;
+    } else {
+      warn.textContent = '';
+    }
+  }
+
+  function applyGridOrder() {
+    const total = ROWS * COLS;
+    document.querySelectorAll('.seat').forEach(cell => {
+      const idx = parseInt(cell.dataset.index, 10);
+      cell.style.order = isFlipped ? (total - 1 - idx) : idx;
+    });
+  }
+
+  function flipView() {
+    isFlipped = !isFlipped;
+    applyGridOrder();
+    document.getElementById('boardTop').style.display = isFlipped ? 'none' : 'block';
+    document.getElementById('boardBottom').style.display = isFlipped ? 'block' : 'none';
+  }
+
+  // Intelligente DIN-A4-Skalierung vorbereiten und drucken
+  function printPlan() {
+    const cells = document.querySelectorAll('.seat');
+    const titleLabel = (activeSource === 'csv' && currentFileName)
+      ? currentFileName.replace(/\.[^/.]+$/, '')
+      : 'Sitzplan';
+    document.getElementById('printTitle').textContent = (activeSource === 'csv' && currentFileName)
+      ? `Sitzplan – ${titleLabel}`
+      : 'Sitzplan';
+
+    if (activeSeats.size > 0) {
+      let minR = ROWS, maxR = -1, minC = COLS, maxC = -1;
+      activeSeats.forEach(idx => {
+        const r = Math.floor(idx / COLS);
+        const c = idx % COLS;
+        if (r < minR) minR = r;
+        if (r > maxR) maxR = r;
+        if (c < minC) minC = c;
+        if (c > maxC) maxC = c;
+      });
+
+      const usedRows = maxR - minR + 1;
+      const usedCols = maxC - minC + 1;
+      gridEl.style.setProperty('--print-rows', usedRows);
+      gridEl.style.setProperty('--print-cols', usedCols);
+
+      cells.forEach((cell, idx) => {
+        const r = Math.floor(idx / COLS);
+        const c = idx % COLS;
+        if (r < minR || r > maxR || c < minC || c > maxC) {
+          cell.classList.add('print-hidden');
+        } else {
+          cell.classList.remove('print-hidden');
+        }
+      });
+    } else {
+      gridEl.style.setProperty('--print-rows', ROWS);
+      gridEl.style.setProperty('--print-cols', COLS);
+      cells.forEach(cell => cell.classList.remove('print-hidden'));
+    }
+
+    window.print();
+  }
+
+  window.addEventListener('afterprint', () => {
+    document.querySelectorAll('.seat').forEach(cell => cell.classList.remove('print-hidden'));
+  });
+
+  // Raum-Konfiguration als JSON exportieren
+  function exportLayout() {
+    const data = JSON.stringify({ activeSeats: Array.from(activeSeats) });
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'raum-layout.json';
+    a.click();
+  }
+
+  // Raum-Konfiguration laden
+  document.getElementById('layoutInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      try {
+        const data = JSON.parse(event.target.result);
+        resetGrid();
+        const cells = document.querySelectorAll('.seat');
+        data.activeSeats.forEach(idx => {
+          if (cells[idx]) toggleSeat(idx, cells[idx]);
+        });
+      } catch (err) {
+        alert('Ungültige Layout-Datei.');
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  initGrid();
+</script>
+</body>
+</html>
